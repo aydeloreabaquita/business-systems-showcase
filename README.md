@@ -35,3 +35,11 @@ Production work would add secure accounts, permissions, a shared database, audit
 Run `node --check app.js` and `node tests/check-demo.cjs`. Automated checks use a minimal document harness, not a real browser. Visual acceptance testing is still required before presenting on a target device.
 
 No company affiliation is implied. No license grant is included.
+
+## Dashboard, appointment list, and regular customers
+
+The Dashboard is the default view, with today's appointments, the next five upcoming bookings, and customers with daily, weekly, or monthly visit frequencies. Appointments lists all bookings still marked Scheduled, including past dates awaiting a status update, in date/time order. Its Add Appointment button opens the existing booking form.
+
+Customer profiles and the add/edit form include phone, address, and visit frequency (As needed, Every day, Every week, Every month). Frequency is a customer preference label; it does not automatically generate repeating bookings. Existing saved customer records are preserved and default to a blank address and As needed frequency.
+
+The Connect Gmail account button opens an explanatory demo dialog. It does not authenticate with Google, request permissions, store tokens, or send mail. A live connection needs a configured Google OAuth client and an approved email-sending implementation before activation.
