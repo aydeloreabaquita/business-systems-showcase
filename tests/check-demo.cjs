@@ -1,13 +1,18 @@
-const vm=require('node:vm'),fs=require('node:fs'),assert=require('node:assert/strict');
-class E{constructor(){this.children=[];this.listeners={};this.value='';this.style={};this.dataset={};this.classList={toggle(){}};}append(...x){this.children.push(...x)}replaceChildren(){this.children=[]}setAttribute(){}addEventListener(k,f){this.listeners[k]=f}click(){} }
-const elements={}, storage=new Map();const document={getElementById:id=>elements[id]??=new E(),createElement:()=>new E(),querySelectorAll:()=>[]};
-const context=vm.createContext({document,localStorage:{getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v)},Intl,Date,Number,String,JSON,Array,Object,console,setTimeout,clearTimeout,Blob,URL,confirm:()=>true,crypto:require('node:crypto').webcrypto});
-vm.runInContext(fs.readFileSync(require('node:path').join(__dirname,'..','app.js'),'utf8'),context);
-const run=code=>vm.runInContext(code,context);
-for(const id of ['skin','arbor','tricon','smox']){run(`current='${id}';records=load(current);render()`);assert.equal(elements.board.children.length,4);assert.equal(elements.metrics.children.length,4);assert.equal(run('records.length'),5);assert.equal(elements.drafts.children.length,4);run('records[0].stage=3;save();records=load(current);render()');assert.equal(run('records[0].stage'),3);}
-run("current='skin';records=seed(current);$('search').value='Jordan';render()");assert.equal(elements.board.children[0].children.length,2);assert.equal(elements.board.children[1].children[1].textContent,'No requests here yet.');
-assert.equal(run(`csvCell('=1+1')`),`"'=1+1"`);assert.equal(run(`csvCell('a"b')`),'"a""b"');
-storage.set('relay-demo-v1-skin','bad-json');assert.equal(run("load('skin').length"),5);
-run("current='skin';records=seed(current);$('search').value='';render()");const select=elements.board.children[0].children[1].children.at(-1);select.value='2';select.listeners.change();assert.equal(run('records[0].stage'),2);assert.equal(run('load(current)[0].stage'),2);
-console.log('PASS: four presets, rendering, metrics, drafts, filtering, status changes, persistence, corrupt storage fallback, CSV escaping.');
-
+const vm=require('node:vm'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+class E{constructor(){this.children=[];this.listeners={};this.value='';this.style={};this.dataset={};this.classList={toggle(){}};}append(...x){this.children.push(...x)}replaceChildren(){this.children=[]}setAttribute(){}addEventListener(k,f){this.listeners[k]=f}close(){} }
+const elements={},storage=new Map(),document={getElementById:id=>elements[id]??=new E(),createElement:()=>new E(),querySelectorAll:()=>[]};
+class FormDataMock{constructor(values){this.values=values}get(key){return this.values[key]}}
+const context=vm.createContext({document,localStorage:{getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v)},Intl,Date,Number,String,JSON,Array,Object,console,setTimeout,clearTimeout,FormData:FormDataMock,confirm:()=>true,crypto:require('node:crypto').webcrypto});
+vm.runInContext(fs.readFileSync(path.join(__dirname,'..','app.js'),'utf8'),context);const run=s=>vm.runInContext(s,context);
+assert.equal(elements.week.children.length,7);assert.equal(elements.metrics.children.length,4);assert.equal(elements['staff-list'].children.length,3);assert.equal(elements['customer-list'].children.length,3);
+assert.equal(run('valid(state)'),true);storage.set('relay-scheduling-v2','bad-json');assert.equal(run('load().customers.length'),3);storage.set('relay-scheduling-v2','{}');assert.equal(run('load().bookings.length'),5);
+run("var base={id:'test',customer:'c1',staff:'s1',service:'Demo session',date:ds(monday()),time:'11:00',duration:60,status:'Scheduled'}");assert.equal(run('conflict(base)'), '');assert.match(run("conflict({...base,time:'10:30'})"),/overlapping/);assert.match(run("conflict({...base,time:'08:00'})"),/working hours/);assert.match(run("conflict({...base,date:ds(offset(monday(),6))})"),/working hours/);assert.match(run("conflict({...base,date:'2026-02-30'})"),/valid date/);assert.match(run("conflict({...base,duration:17})"),/duration/);assert.equal(run("conflict({...base,time:'10:30',status:'Cancelled'})"),'');
+assert.equal(run('book(base)'),'');assert.equal(run('state.emails.length'),1);assert.equal(run('state.emails[0].to'),'jamie@example.com');assert.equal(run('load().bookings.length'),6);assert.equal(run('book(base)'),'');assert.equal(run('state.emails.length'),1);
+assert.equal(run("book({...base,staff:'s2'})"),'');assert.equal(run('state.emails.length'),3);assert.match(run('state.emails[0].body'),/Cancelled/);assert.equal(run('state.emails[1].to'),'riley@example.com');
+assert.equal(run("book({...base,staff:'s2',status:'Cancelled'})"),'');assert.equal(run('state.emails.length'),4);
+run('state.rules.assigned=false');assert.equal(run("book({...base,id:'test2',time:'12:00'})"),'');assert.equal(run('state.emails.length'),4);run('state.rules.assigned=true');
+run("state.bookings.push({...base,id:'reminder-test',date:ds(new Date('2026-10-19T12:00:00')),time:'13:00'})");assert.ok(run("reminders(new Date('2026-10-19T12:00:00'))")>=1);assert.equal(run("reminders(new Date('2026-10-19T12:00:00'))"),0);
+run("state.bookings.push({...base,id:'future-test',date:ds(monday(offset(new Date(),14))),time:'11:00'})");assert.match(run("availability('s1',[1,2,3,4,5],'12:00','17:00')"),/conflicts/);assert.match(run("availability('s1',[],'09:00','17:00')"),/working days/);assert.equal(run("availability('s1',[1,2,3,4,5],'08:00','18:00')"),'');
+const before=run('state.customers.length');elements['customer-form'].listeners.submit({preventDefault(){},target:{name:'Test Customer',email:'test@example.com',phone:'555-0199',notes:'Fictional'}});assert.equal(run('state.customers.length'),before+1);assert.equal(run('load().customers.at(-1).name'),'Test Customer');
+elements.search.value='Jordan';elements.search.listeners.input();assert.equal(elements['customer-list'].children.length,1);
+console.log('PASS: calendar, customer intake/history rendering/search, persistence, corrupt storage recovery, overlap and shift validation, invalid dates/durations, booking edits, reassignments/cancellations, rule toggles, reminder deduplication, availability conflict protection.');
